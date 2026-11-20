@@ -1,386 +1,458 @@
-/* ═══════════════════════════════════════════════════════════
-   DASHBOARD — app.js
+/* ═══════════════════════════════════════════════════════════════
+   app.js  –  To-Do Dashboard
    Sections:
-     1. Greeting & Clock
-     2. Focus Timer
-     3. To-Do List
-     4. Quick Links
-   All data persisted in localStorage.
-═══════════════════════════════════════════════════════════ */
+     1. Helpers
+     2. Clock & Greeting
+     3. Theme
+     4. Name
+     5. Timer
+     6. To-Do List
+     7. Quick Links
+   ═══════════════════════════════════════════════════════════════ */
 
 'use strict';
 
-/* ─────────────────────────────────────────
-   1. GREETING & CLOCK
-───────────────────────────────────────── */
-const datetimeEl = document.getElementById('datetime');
-const greetingEl = document.getElementById('greeting');
+/* ─────────────────────────────────────────────
+   1. HELPERS
+───────────────────────────────────────────── */
 
-function getGreeting(hour) {
-  if (hour >= 5  && hour < 12) return 'Good morning ☀️';
-  if (hour >= 12 && hour < 17) return 'Good afternoon 🌤️';
-  if (hour >= 17 && hour < 21) return 'Good evening 🌆';
-  return 'Good night 🌙';
+/** Read a value from localStorage, returning `fallback` if absent or unparseable. */
+function load(key, fallback) {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw === null ? fallback : JSON.parse(raw);
+  } catch {
+    return fallback;
+  }
 }
 
+/** Write a JSON-serialisable value to localStorage. */
+function save(key, value) {
+  localStorage.setItem(key, JSON.stringify(value));
+}
+
+/** Pad a number to 2 digits. */
+const pad = (n) => String(n).padStart(2, '0');
+
+/* ─────────────────────────────────────────────
+   2. CLOCK & GREETING
+───────────────────────────────────────────── */
+
+const clockEl    = document.getElementById('clock');
+const dateEl     = document.getElementById('date');
+const greetingEl = document.getElementById('greeting-text');
+
+const DAYS   = ['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'];
+const MONTHS = ['January','February','March','April','May','June',
+                'July','August','September','October','November','December'];
+
 function updateClock() {
-  const now = new Date();
-  const hour = now.getHours();
+  const now  = new Date();
+  const h    = now.getHours();
+  const m    = now.getMinutes();
+  const s    = now.getSeconds();
+  const ampm = h >= 12 ? 'PM' : 'AM';
+  const h12  = h % 12 || 12;
 
-  const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-  const dateStr = now.toLocaleDateString([], { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+  clockEl.textContent = `${pad(h12)}:${pad(m)}:${pad(s)} ${ampm}`;
+  dateEl.textContent  = `${DAYS[now.getDay()]}, ${MONTHS[now.getMonth()]} ${now.getDate()}, ${now.getFullYear()}`;
 
-  datetimeEl.textContent = `${dateStr}  •  ${timeStr}`;
-  greetingEl.textContent = getGreeting(hour);
+  const greeting =
+    h < 12 ? 'Good morning' :
+    h < 17 ? 'Good afternoon' :
+    h < 21 ? 'Good evening' : 'Good night';
+  greetingEl.textContent = greeting;
 }
 
 updateClock();
 setInterval(updateClock, 1000);
 
+/* ─────────────────────────────────────────────
+   3. THEME  (light / dark)
+───────────────────────────────────────────── */
 
-/* ─────────────────────────────────────────
-   2. FOCUS TIMER
-───────────────────────────────────────── */
-const TIMER_DURATION = 25 * 60; // seconds
+const themeToggleBtn = document.getElementById('theme-toggle');
 
-const timerDisplay = document.getElementById('timer-display');
-const timerLabel   = document.getElementById('timer-label');
-const startBtn     = document.getElementById('timer-start');
-const stopBtn      = document.getElementById('timer-stop');
-const resetBtn     = document.getElementById('timer-reset');
+function applyTheme(dark) {
+  document.documentElement.setAttribute('data-theme', dark ? 'dark' : 'light');
+  themeToggleBtn.textContent = dark ? '☀️' : '🌙';
+  themeToggleBtn.title = dark ? 'Switch to light mode' : 'Switch to dark mode';
+}
 
-let timerSeconds   = TIMER_DURATION;
+let isDark = load('theme_dark', false);
+applyTheme(isDark);
+
+themeToggleBtn.addEventListener('click', () => {
+  isDark = !isDark;
+  save('theme_dark', isDark);
+  applyTheme(isDark);
+});
+
+/* ─────────────────────────────────────────────
+   4. NAME
+───────────────────────────────────────────── */
+
+const userNameEl    = document.getElementById('user-name');
+const editNameBtn   = document.getElementById('edit-name-btn');
+const nameModal     = document.getElementById('name-modal');
+const nameInput     = document.getElementById('name-input');
+const nameSaveBtn   = document.getElementById('name-save-btn');
+const nameCancelBtn = document.getElementById('name-cancel-btn');
+
+function renderName() {
+  userNameEl.textContent = load('user_name', 'Friend');
+}
+renderName();
+
+function openNameModal() {
+  nameInput.value = load('user_name', '');
+  nameModal.classList.remove('hidden');
+  nameInput.focus();
+}
+
+function closeNameModal() {
+  nameModal.classList.add('hidden');
+}
+
+editNameBtn.addEventListener('click', openNameModal);
+userNameEl.addEventListener('click', openNameModal);
+
+nameSaveBtn.addEventListener('click', () => {
+  const name = nameInput.value.trim();
+  if (name) save('user_name', name);
+  renderName();
+  closeNameModal();
+});
+
+nameCancelBtn.addEventListener('click', closeNameModal);
+
+nameInput.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter')  nameSaveBtn.click();
+  if (e.key === 'Escape') closeNameModal();
+});
+
+nameModal.addEventListener('click', (e) => {
+  if (e.target === nameModal) closeNameModal();
+});
+
+/* ─────────────────────────────────────────────
+   5. FOCUS TIMER
+───────────────────────────────────────────── */
+
+const timerMinEl    = document.getElementById('timer-minutes');
+const timerSecEl    = document.getElementById('timer-seconds');
+const timerStartBtn = document.getElementById('timer-start');
+const timerStopBtn  = document.getElementById('timer-stop');
+const timerResetBtn = document.getElementById('timer-reset');
+const timerSetBtn   = document.getElementById('timer-settings-btn');
+const timerPanel    = document.getElementById('timer-settings-panel');
+const timerDurInput = document.getElementById('timer-duration-input');
+const timerDurSave  = document.getElementById('timer-duration-save');
+
+let timerDuration  = load('timer_duration', 25);  // minutes
+let timerRemaining = timerDuration * 60;           // seconds
 let timerInterval  = null;
 let timerRunning   = false;
 
-function formatTime(secs) {
-  const m = String(Math.floor(secs / 60)).padStart(2, '0');
-  const s = String(secs % 60).padStart(2, '0');
-  return `${m}:${s}`;
-}
-
 function renderTimer() {
-  timerDisplay.textContent = formatTime(timerSeconds);
-
-  timerDisplay.classList.remove('running', 'finished');
-  if (timerRunning) {
-    timerDisplay.classList.add('running');
-    timerLabel.textContent = 'Stay focused!';
-  } else if (timerSeconds === 0) {
-    timerDisplay.classList.add('finished');
-    timerLabel.textContent = '🎉 Session complete! Take a break.';
-  } else if (timerSeconds === TIMER_DURATION) {
-    timerLabel.textContent = 'Ready to focus?';
-  } else {
-    timerLabel.textContent = 'Paused';
-  }
-
-  startBtn.disabled = timerRunning || timerSeconds === 0;
-  stopBtn.disabled  = !timerRunning;
+  const m = Math.floor(timerRemaining / 60);
+  const s = timerRemaining % 60;
+  timerMinEl.textContent = pad(m);
+  timerSecEl.textContent = pad(s);
+  document.title = timerRunning ? `${pad(m)}:${pad(s)} – Dashboard` : 'My Dashboard';
 }
 
-function startTimer() {
-  if (timerRunning || timerSeconds === 0) return;
+function setTimerButtons(running) {
+  timerStartBtn.disabled = running;
+  timerStopBtn.disabled  = !running;
+}
+
+renderTimer();
+timerDurInput.value = timerDuration;
+
+timerStartBtn.addEventListener('click', () => {
+  if (timerRunning) return;
   timerRunning = true;
+  setTimerButtons(true);
   timerInterval = setInterval(() => {
-    timerSeconds--;
-    if (timerSeconds <= 0) {
-      timerSeconds = 0;
+    timerRemaining--;
+    renderTimer();
+    if (timerRemaining <= 0) {
       clearInterval(timerInterval);
       timerRunning = false;
+      setTimerButtons(false);
+      timerRemaining = 0;
+      renderTimer();
+      // Simple browser notification fallback
+      if (Notification && Notification.permission === 'granted') {
+        new Notification('Focus session complete! 🎉', { body: 'Time for a break.' });
+      } else {
+        alert('⏰ Focus session complete! Time for a break.');
+      }
     }
-    renderTimer();
   }, 1000);
-  renderTimer();
-}
+});
 
-function stopTimer() {
-  if (!timerRunning) return;
+timerStopBtn.addEventListener('click', () => {
   clearInterval(timerInterval);
   timerRunning = false;
-  renderTimer();
-}
+  setTimerButtons(false);
+  document.title = 'My Dashboard';
+});
 
-function resetTimer() {
+timerResetBtn.addEventListener('click', () => {
   clearInterval(timerInterval);
-  timerRunning  = false;
-  timerSeconds  = TIMER_DURATION;
+  timerRunning   = false;
+  timerRemaining = timerDuration * 60;
+  setTimerButtons(false);
   renderTimer();
+});
+
+timerSetBtn.addEventListener('click', () => {
+  timerPanel.classList.toggle('hidden');
+});
+
+timerDurSave.addEventListener('click', () => {
+  const val = parseInt(timerDurInput.value, 10);
+  if (!val || val < 1 || val > 120) return;
+  timerDuration = val;
+  save('timer_duration', timerDuration);
+  clearInterval(timerInterval);
+  timerRunning   = false;
+  timerRemaining = timerDuration * 60;
+  setTimerButtons(false);
+  renderTimer();
+  timerPanel.classList.add('hidden');
+});
+
+// Request notification permission early (best-effort)
+if (Notification && Notification.permission === 'default') {
+  Notification.requestPermission();
 }
 
-startBtn.addEventListener('click', startTimer);
-stopBtn.addEventListener('click', stopTimer);
-resetBtn.addEventListener('click', resetTimer);
+/* ─────────────────────────────────────────────
+   6. TO-DO LIST
+───────────────────────────────────────────── */
 
-renderTimer(); // initial render
+const todoForm     = document.getElementById('todo-form');
+const todoInput    = document.getElementById('todo-input');
+const todoListEl   = document.getElementById('todo-list');
+const todoBadge    = document.getElementById('todo-count');
+const clearDoneBtn = document.getElementById('clear-done-btn');
 
+/** @type {{ id: string, text: string, done: boolean }[]} */
+let tasks = load('tasks', []);
 
-/* ─────────────────────────────────────────
-   3. TO-DO LIST
-───────────────────────────────────────── */
-const TODO_KEY    = 'dashboard_todos';
-const todoInput   = document.getElementById('todo-input');
-const todoAddBtn  = document.getElementById('todo-add');
-const todoListEl  = document.getElementById('todo-list');
-const todoEmptyEl = document.getElementById('todo-empty');
-
-// Modal elements
-const editModal   = document.getElementById('edit-modal');
-const editInput   = document.getElementById('edit-input');
-const editSaveBtn = document.getElementById('edit-save');
-const editCancelBtn = document.getElementById('edit-cancel');
-
-let todos = [];
-let editingId = null;
-
-function loadTodos() {
-  try {
-    todos = JSON.parse(localStorage.getItem(TODO_KEY)) || [];
-  } catch {
-    todos = [];
-  }
+function saveTasks() {
+  save('tasks', tasks);
 }
 
-function saveTodos() {
-  localStorage.setItem(TODO_KEY, JSON.stringify(todos));
+function renderBadge() {
+  const remaining = tasks.filter(t => !t.done).length;
+  todoBadge.textContent = remaining;
+  todoBadge.style.display = tasks.length ? '' : 'none';
 }
 
-function generateId() {
-  return Date.now().toString(36) + Math.random().toString(36).slice(2);
-}
+function createTaskEl(task) {
+  const li = document.createElement('li');
+  li.className = 'todo-item' + (task.done ? ' done' : '');
+  li.dataset.id = task.id;
 
-function renderTodos() {
-  todoListEl.innerHTML = '';
-  todoEmptyEl.style.display = todos.length === 0 ? 'block' : 'none';
-
-  todos.forEach(todo => {
-    const li = document.createElement('li');
-    li.className = `todo-item${todo.done ? ' done' : ''}`;
-    li.dataset.id = todo.id;
-
-    const checkbox = document.createElement('input');
-    checkbox.type    = 'checkbox';
-    checkbox.checked = todo.done;
-    checkbox.setAttribute('aria-label', 'Mark done');
-
-    const span = document.createElement('span');
-    span.className   = 'todo-text';
-    span.textContent = todo.text;
-
-    const actions = document.createElement('div');
-    actions.className = 'todo-actions';
-
-    const editBtn = document.createElement('button');
-    editBtn.className = 'btn-icon';
-    editBtn.setAttribute('aria-label', 'Edit task');
-    editBtn.title = 'Edit';
-    editBtn.textContent = '✏️';
-
-    const deleteBtn = document.createElement('button');
-    deleteBtn.className = 'btn-icon';
-    deleteBtn.setAttribute('aria-label', 'Delete task');
-    deleteBtn.title = 'Delete';
-    deleteBtn.textContent = '🗑️';
-
-    // Events
-    checkbox.addEventListener('change', () => toggleTodo(todo.id));
-    editBtn.addEventListener('click', () => openEditModal(todo.id));
-    deleteBtn.addEventListener('click', () => deleteTodo(todo.id));
-
-    actions.append(editBtn, deleteBtn);
-    li.append(checkbox, span, actions);
-    todoListEl.appendChild(li);
+  // Checkbox
+  const checkbox = document.createElement('input');
+  checkbox.type = 'checkbox';
+  checkbox.className = 'todo-checkbox';
+  checkbox.checked = task.done;
+  checkbox.setAttribute('aria-label', 'Mark task as done');
+  checkbox.addEventListener('change', () => {
+    task.done = checkbox.checked;
+    li.classList.toggle('done', task.done);
+    saveTasks();
+    renderBadge();
   });
+
+  // Text (editable)
+  const span = document.createElement('span');
+  span.className = 'todo-text';
+  span.textContent = task.text;
+  span.setAttribute('role', 'textbox');
+  span.setAttribute('aria-label', 'Task text');
+
+  // Actions
+  const actions = document.createElement('div');
+  actions.className = 'todo-actions';
+
+  const editBtn = document.createElement('button');
+  editBtn.className = 'icon-btn';
+  editBtn.title = 'Edit task';
+  editBtn.setAttribute('aria-label', 'Edit task');
+  editBtn.textContent = '✏️';
+
+  const deleteBtn = document.createElement('button');
+  deleteBtn.className = 'icon-btn btn-danger';
+  deleteBtn.title = 'Delete task';
+  deleteBtn.setAttribute('aria-label', 'Delete task');
+  deleteBtn.textContent = '🗑️';
+
+  // Edit behaviour
+  editBtn.addEventListener('click', () => {
+    if (span.contentEditable === 'true') {
+      // Save
+      const newText = span.textContent.trim();
+      if (newText) {
+        task.text = newText;
+        saveTasks();
+      } else {
+        span.textContent = task.text; // revert
+      }
+      span.contentEditable = 'false';
+      editBtn.textContent = '✏️';
+      editBtn.title = 'Edit task';
+    } else {
+      span.contentEditable = 'true';
+      span.focus();
+      // move caret to end
+      const range = document.createRange();
+      range.selectNodeContents(span);
+      range.collapse(false);
+      window.getSelection().removeAllRanges();
+      window.getSelection().addRange(range);
+      editBtn.textContent = '✔️';
+      editBtn.title = 'Save edit';
+    }
+  });
+
+  span.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); editBtn.click(); }
+    if (e.key === 'Escape') {
+      span.contentEditable = 'false';
+      span.textContent = task.text;
+      editBtn.textContent = '✏️';
+    }
+  });
+
+  // Delete behaviour
+  deleteBtn.addEventListener('click', () => {
+    tasks = tasks.filter(t => t.id !== task.id);
+    saveTasks();
+    li.style.animation = 'none';
+    li.style.opacity = '0';
+    li.style.transform = 'translateX(16px)';
+    li.style.transition = 'opacity .18s, transform .18s';
+    setTimeout(() => li.remove(), 180);
+    renderBadge();
+  });
+
+  actions.append(editBtn, deleteBtn);
+  li.append(checkbox, span, actions);
+  return li;
 }
 
-function addTodo() {
+function renderTasks() {
+  todoListEl.innerHTML = '';
+  tasks.forEach(task => todoListEl.appendChild(createTaskEl(task)));
+  renderBadge();
+}
+
+todoForm.addEventListener('submit', (e) => {
+  e.preventDefault();
   const text = todoInput.value.trim();
   if (!text) return;
-
-  todos.push({ id: generateId(), text, done: false });
-  saveTodos();
-  renderTodos();
+  const task = { id: Date.now().toString(), text, done: false };
+  tasks.unshift(task);
+  saveTasks();
+  todoListEl.prepend(createTaskEl(task));
+  renderBadge();
   todoInput.value = '';
   todoInput.focus();
-}
-
-function toggleTodo(id) {
-  const todo = todos.find(t => t.id === id);
-  if (todo) {
-    todo.done = !todo.done;
-    saveTodos();
-    renderTodos();
-  }
-}
-
-function deleteTodo(id) {
-  todos = todos.filter(t => t.id !== id);
-  saveTodos();
-  renderTodos();
-}
-
-function openEditModal(id) {
-  const todo = todos.find(t => t.id === id);
-  if (!todo) return;
-  editingId = id;
-  editInput.value = todo.text;
-  editModal.hidden = false;
-  editInput.focus();
-  editInput.select();
-}
-
-function closeEditModal() {
-  editModal.hidden = true;
-  editingId = null;
-}
-
-function saveEdit() {
-  const text = editInput.value.trim();
-  if (!text || editingId === null) return;
-  const todo = todos.find(t => t.id === editingId);
-  if (todo) {
-    todo.text = text;
-    saveTodos();
-    renderTodos();
-  }
-  closeEditModal();
-}
-
-todoAddBtn.addEventListener('click', addTodo);
-todoInput.addEventListener('keydown', e => { if (e.key === 'Enter') addTodo(); });
-editSaveBtn.addEventListener('click', saveEdit);
-editCancelBtn.addEventListener('click', closeEditModal);
-editInput.addEventListener('keydown', e => {
-  if (e.key === 'Enter') saveEdit();
-  if (e.key === 'Escape') closeEditModal();
 });
-// Close modal on overlay click
-editModal.addEventListener('click', e => { if (e.target === editModal) closeEditModal(); });
 
-loadTodos();
-renderTodos();
+clearDoneBtn.addEventListener('click', () => {
+  tasks = tasks.filter(t => !t.done);
+  saveTasks();
+  renderTasks();
+});
 
+renderTasks();
 
-/* ─────────────────────────────────────────
-   4. QUICK LINKS
-───────────────────────────────────────── */
-const LINKS_KEY    = 'dashboard_links';
-const linkNameInput = document.getElementById('link-name');
-const linkUrlInput  = document.getElementById('link-url');
-const linkAddBtn    = document.getElementById('link-add');
-const linksGridEl   = document.getElementById('links-grid');
-const linksEmptyEl  = document.getElementById('links-empty');
+/* ─────────────────────────────────────────────
+   7. QUICK LINKS
+───────────────────────────────────────────── */
 
-let links = [];
+const linkForm      = document.getElementById('link-form');
+const linkNameInput = document.getElementById('link-name-input');
+const linkUrlInput  = document.getElementById('link-url-input');
+const linksGrid     = document.getElementById('links-grid');
 
-function loadLinks() {
-  try {
-    links = JSON.parse(localStorage.getItem(LINKS_KEY)) || [];
-  } catch {
-    links = [];
-  }
-}
+/** @type {{ id: string, name: string, url: string }[]} */
+let links = load('quick_links', []);
 
 function saveLinks() {
-  localStorage.setItem(LINKS_KEY, JSON.stringify(links));
+  save('quick_links', links);
 }
 
-function getFaviconUrl(urlString) {
-  try {
-    const url = new URL(urlString);
-    return `https://www.google.com/s2/favicons?domain=${url.hostname}&sz=32`;
-  } catch {
-    return null;
+function normaliseUrl(url) {
+  if (!url.startsWith('http://') && !url.startsWith('https://')) {
+    return 'https://' + url;
   }
+  return url;
 }
 
-function ensureProtocol(urlString) {
-  if (!/^https?:\/\//i.test(urlString)) {
-    return 'https://' + urlString;
-  }
-  return urlString;
+function createLinkEl(link) {
+  const chip = document.createElement('div');
+  chip.className = 'link-chip';
+  chip.setAttribute('role', 'listitem');
+
+  const anchor = document.createElement('a');
+  anchor.href   = link.url;
+  anchor.target = '_blank';
+  anchor.rel    = 'noopener noreferrer';
+  anchor.textContent = link.name;
+  anchor.style.textDecoration = 'none';
+  anchor.style.color = 'inherit';
+
+  const delBtn = document.createElement('button');
+  delBtn.className = 'link-chip-delete';
+  delBtn.title = 'Remove link';
+  delBtn.setAttribute('aria-label', `Remove ${link.name}`);
+  delBtn.textContent = '✕';
+
+  delBtn.addEventListener('click', (e) => {
+    e.preventDefault();
+    links = links.filter(l => l.id !== link.id);
+    saveLinks();
+    chip.style.transition = 'opacity .15s, transform .15s';
+    chip.style.opacity = '0';
+    chip.style.transform = 'scale(.85)';
+    setTimeout(() => chip.remove(), 160);
+  });
+
+  chip.append(anchor, delBtn);
+  return chip;
 }
 
 function renderLinks() {
-  linksGridEl.innerHTML = '';
-  linksEmptyEl.style.display = links.length === 0 ? 'block' : 'none';
-
-  links.forEach(link => {
-    const wrapper = document.createElement('div');
-    wrapper.className = 'link-wrapper';
-
-    const a = document.createElement('a');
-    a.className = 'link-chip';
-    a.href      = link.url;
-    a.target    = '_blank';
-    a.rel       = 'noopener noreferrer';
-
-    const favicon = getFaviconUrl(link.url);
-    if (favicon) {
-      const img = document.createElement('img');
-      img.src   = favicon;
-      img.className = 'link-favicon';
-      img.alt   = '';
-      img.width = 14;
-      img.height = 14;
-      img.onerror = () => img.remove();
-      a.appendChild(img);
-    }
-
-    const label = document.createElement('span');
-    label.className   = 'link-label';
-    label.textContent = link.name;
-    a.appendChild(label);
-
-    const delBtn = document.createElement('button');
-    delBtn.className = 'link-delete';
-    delBtn.setAttribute('aria-label', `Remove ${link.name}`);
-    delBtn.title = 'Remove';
-    delBtn.textContent = '✕';
-    delBtn.addEventListener('click', () => deleteLink(link.id));
-
-    wrapper.append(a, delBtn);
-    linksGridEl.appendChild(wrapper);
-  });
+  linksGrid.innerHTML = '';
+  links.forEach(link => linksGrid.appendChild(createLinkEl(link)));
 }
 
-function addLink() {
+linkForm.addEventListener('submit', (e) => {
+  e.preventDefault();
   const name = linkNameInput.value.trim();
-  let   url  = linkUrlInput.value.trim();
+  const url  = normaliseUrl(linkUrlInput.value.trim());
 
-  if (!name || !url) {
-    if (!name) linkNameInput.focus();
-    else       linkUrlInput.focus();
-    return;
-  }
+  if (!name || !url) return;
 
-  url = ensureProtocol(url);
+  // Basic URL validation
+  try { new URL(url); } catch { alert('Please enter a valid URL.'); return; }
 
-  // Basic URL validity check
-  try { new URL(url); } catch {
-    linkUrlInput.style.borderColor = 'var(--danger)';
-    setTimeout(() => linkUrlInput.style.borderColor = '', 1500);
-    linkUrlInput.focus();
-    return;
-  }
-
-  links.push({ id: generateId(), name, url });
+  const link = { id: Date.now().toString(), name, url };
+  links.push(link);
   saveLinks();
-  renderLinks();
+  linksGrid.appendChild(createLinkEl(link));
   linkNameInput.value = '';
   linkUrlInput.value  = '';
   linkNameInput.focus();
-}
+});
 
-function deleteLink(id) {
-  links = links.filter(l => l.id !== id);
-  saveLinks();
-  renderLinks();
-}
-
-linkAddBtn.addEventListener('click', addLink);
-linkUrlInput.addEventListener('keydown', e => { if (e.key === 'Enter') addLink(); });
-linkNameInput.addEventListener('keydown', e => { if (e.key === 'Enter') linkUrlInput.focus(); });
-
-loadLinks();
 renderLinks();
